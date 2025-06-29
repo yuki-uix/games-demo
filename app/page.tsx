@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -69,6 +69,10 @@ const BASE_PATCH_TEMPLATES = [
     ],
     baseColor: "indigo",
   },
+  {
+    shape: [[1]], // 1x1 single cell for independent patch rewards
+    baseColor: "teal",
+  },
 ]
 
 // Color variations
@@ -83,6 +87,7 @@ const COLOR_VARIANTS = {
   cyan: ["bg-cyan-400", "bg-cyan-500", "bg-cyan-600"],
   lime: ["bg-lime-400", "bg-lime-500", "bg-lime-600"],
   indigo: ["bg-indigo-400", "bg-indigo-500", "bg-indigo-600"],
+  teal: ["bg-teal-400", "bg-teal-500", "bg-teal-600"],
 }
 
 // 游戏进程赛道的奖励节点
@@ -124,6 +129,7 @@ type GameState = {
     score: number
     accumulatedButtons: number // 积累的纽扣
     independentPatches: number // 独立拼块数量
+    emptyCells: number // 剩余空格数量
   }
   player2: {
     board: number[][]
@@ -132,6 +138,7 @@ type GameState = {
     score: number
     accumulatedButtons: number // 积累的纽扣
     independentPatches: number // 独立拼块数量
+    emptyCells: number // 剩余空格数量
   }
   availablePatches: ReturnType<typeof generatePatches>
   selectedPatch: ReturnType<typeof generatePatches>[0] | null
@@ -151,6 +158,7 @@ export default function PatchworkGame() {
       score: 0,
       accumulatedButtons: 0,
       independentPatches: 0,
+      emptyCells: 81,
     },
     player2: {
       board: Array(9)
@@ -161,6 +169,7 @@ export default function PatchworkGame() {
       score: 0,
       accumulatedButtons: 0,
       independentPatches: 0,
+      emptyCells: 81,
     },
     availablePatches: generatePatches(32),
     selectedPatch: null,
@@ -208,43 +217,69 @@ export default function PatchworkGame() {
 
   // 检查是否可以获得独立拼块
   const checkIndependentPatchReward = (playerKey: "player1" | "player2", newPosition: number) => {
+    console.log(`Checking independent patch reward for ${playerKey} at position ${newPosition}`)
+    console.log(`Independent patch positions: ${INDEPENDENT_PATCH_POSITIONS}`)
+    
     if (INDEPENDENT_PATCH_POSITIONS.includes(newPosition)) {
       // 检查是否已经有玩家到达过这个位置
       const otherPlayerKey = playerKey === "player1" ? "player2" : "player1"
       const otherPlayer = gameState[otherPlayerKey]
       
+      console.log(`Other player (${otherPlayerKey}) time position: ${otherPlayer.timePosition}`)
+      
       // 如果另一个玩家还没有到达这个位置，当前玩家可以获得独立拼块
       if (otherPlayer.timePosition < newPosition) {
-        return 1
+        console.log(`Player ${playerKey} gets independent patch reward!`)
+        // 创建一个1x1的独立拼图块
+        const independentPatch = {
+          id: 1000 + newPosition, // 使用特殊ID避免冲突
+          shape: [[1]],
+          cost: 0,
+          time: 0,
+          income: 0,
+          color: "bg-teal-500",
+          isIndependentReward: true,
+        }
+        return independentPatch
+      } else {
+        console.log(`Other player already reached position ${newPosition}, no reward`)
       }
+    } else {
+      console.log(`Position ${newPosition} is not an independent patch position`)
     }
-    return 0
+    return null
   }
 
   // 检查7x7完整正方形奖励
-  const check7x7Reward = (board: number[][]) => {
-    // 检查所有可能的7x7区域
-    for (let startRow = 0; startRow <= 2; startRow++) {
-      for (let startCol = 0; startCol <= 2; startCol++) {
-        let isComplete = true
-        for (let row = startRow; row < startRow + 7; row++) {
-          for (let col = startCol; col < startCol + 7; col++) {
-            if (board[row][col] === 0) {
-              isComplete = false
-              break
-            }
-          }
-          if (!isComplete) break
-        }
-        if (isComplete) {
-          return 7 // 7分奖励
-        }
-      }
-    }
-    return 0
-  }
+  // const check7x7Reward = (board: number[][]) => {
+  //   // 检查所有可能的7x7区域
+  //   for (let startRow = 0; startRow <= 2; startRow++) {
+  //     for (let startCol = 0; startCol <= 2; startCol++) {
+  //       let isComplete = true
+  //       for (let row = startRow; row < startRow + 7; row++) {
+  //         for (let col = startCol; col < startCol + 7; col++) {
+  //           if (board[row][col] === 0) {
+  //             isComplete = false
+  //             break
+  //           }
+  //         }
+  //         if (!isComplete) break
+  //       }
+  //       if (isComplete) {
+  //         return 7 // 7分奖励
+  //       }
+  //     }
+  //   }
+  //   return 0
+  // }
 
   const selectPatch = (patch: ReturnType<typeof generatePatches>[0] & { trackIndex: number }) => {
+    // 游戏结束时禁止操作
+    if (gameState.gamePhase === "ended") {
+      console.log("Game has ended, cannot select patches")
+      return
+    }
+    
     console.log("Selecting patch:", patch.id, "Cost:", patch.cost, "Player buttons:", currentPlayerData.buttons)
     if (currentPlayerData.buttons >= patch.cost) {
       setGameState((prev) => ({
@@ -273,7 +308,29 @@ export default function PatchworkGame() {
     return true
   }
 
+  // 计算剩余空格数量
+  const calculateEmptyCells = (board: number[][]) => {
+    return board.flat().filter((cell) => cell === 0).length
+  }
+
+  // 计算最终分数（只在游戏结束时）
+  const calculateFinalScore = (player: typeof gameState.player1) => {
+    const emptyPenalty = player.emptyCells * 2
+    return player.buttons - emptyPenalty
+  }
+
+  // 检查游戏是否结束
+  const checkGameEnd = () => {
+    return gameState.player1.timePosition >= 52 && gameState.player2.timePosition >= 52
+  }
+
   const placePatch = (row: number, col: number) => {
+    // 游戏结束时禁止操作
+    if (gameState.gamePhase === "ended") {
+      console.log("Game has ended, cannot place patches")
+      return
+    }
+    
     console.log("Attempting to place patch at:", row, col, "Placement mode:", placementMode)
 
     if (!gameState.selectedPatch || !placementMode) {
@@ -300,17 +357,30 @@ export default function PatchworkGame() {
       }
 
       const newTimePosition = Math.min(52, playerData.timePosition + patch.time)
+      const newEmptyCells = calculateEmptyCells(newBoard)
       
       // 检查奖励
       const buttonReward = checkButtonReward(playerKey, newTimePosition)
       const independentPatchReward = checkIndependentPatchReward(playerKey, newTimePosition)
-      const sevenBySevenReward = check7x7Reward(newBoard)
+      
+      console.log(`Button reward: ${buttonReward}`)
+      console.log(`Independent patch reward:`, independentPatchReward)
 
       setGameState((prev) => {
         // Remove the selected patch from available patches
         const newAvailablePatches = prev.availablePatches.filter((p) => p.id !== patch.id)
+        
+        // Add independent patch reward if received
+        const finalAvailablePatches = independentPatchReward 
+          ? [...newAvailablePatches, independentPatchReward]
+          : newAvailablePatches
+        
+        console.log(`Final available patches count: ${finalAvailablePatches.length}`)
+        if (independentPatchReward) {
+          console.log(`Added independent patch with ID: ${independentPatchReward.id}`)
+        }
 
-        return {
+        const updatedState = {
           ...prev,
           [playerKey]: {
             ...playerData,
@@ -318,13 +388,28 @@ export default function PatchworkGame() {
             buttons: playerData.buttons - patch.cost + patch.income + buttonReward,
             timePosition: newTimePosition,
             accumulatedButtons: buttonReward > 0 ? 0 : playerData.accumulatedButtons + patch.income,
-            independentPatches: playerData.independentPatches + independentPatchReward,
-            score: playerData.score + sevenBySevenReward,
+            independentPatches: playerData.independentPatches + (independentPatchReward ? 1 : 0),
+            emptyCells: newEmptyCells,
           },
-          availablePatches: newAvailablePatches,
+          availablePatches: finalAvailablePatches,
           selectedPatch: null,
           markerPosition: patch.trackIndex,
         }
+
+        // 检查游戏是否结束
+        if (checkGameEnd()) {
+          const finalScore1 = calculateFinalScore(updatedState.player1)
+          const finalScore2 = calculateFinalScore(updatedState.player2)
+          
+          return {
+            ...updatedState,
+            gamePhase: "ended",
+            player1: { ...updatedState.player1, score: finalScore1 },
+            player2: { ...updatedState.player2, score: finalScore2 },
+          }
+        }
+
+        return updatedState
       })
 
       setPlacementMode(false)
@@ -335,6 +420,12 @@ export default function PatchworkGame() {
   }
 
   const skipTurn = () => {
+    // 游戏结束时禁止操作
+    if (gameState.gamePhase === "ended") {
+      console.log("Game has ended, cannot skip turns")
+      return
+    }
+    
     const otherPlayer = currentPlayer === 1 ? gameState.player2 : gameState.player1
     const timeDiff = Math.max(1, otherPlayer.timePosition - currentPlayerData.timePosition)
     const playerKey = currentPlayer === 1 ? "player1" : "player2"
@@ -342,16 +433,49 @@ export default function PatchworkGame() {
 
     // 检查奖励
     const buttonReward = checkButtonReward(playerKey, newTimePosition)
+    const independentPatchReward = checkIndependentPatchReward(playerKey, newTimePosition)
+    
+    console.log(`Skip turn - Button reward: ${buttonReward}`)
+    console.log(`Skip turn - Independent patch reward:`, independentPatchReward)
 
-    setGameState((prev) => ({
-      ...prev,
-      [playerKey]: {
-        ...currentPlayerData,
-        buttons: currentPlayerData.buttons + timeDiff + buttonReward,
-        timePosition: newTimePosition,
-        accumulatedButtons: buttonReward > 0 ? 0 : currentPlayerData.accumulatedButtons,
-      },
-    }))
+    setGameState((prev) => {
+      // Add independent patch reward if received
+      const finalAvailablePatches = independentPatchReward 
+        ? [...prev.availablePatches, independentPatchReward]
+        : prev.availablePatches
+      
+      console.log(`Skip turn - Final available patches count: ${finalAvailablePatches.length}`)
+      if (independentPatchReward) {
+        console.log(`Skip turn - Added independent patch with ID: ${independentPatchReward.id}`)
+      }
+
+      const updatedState = {
+        ...prev,
+        [playerKey]: {
+          ...currentPlayerData,
+          buttons: currentPlayerData.buttons + timeDiff + buttonReward,
+          timePosition: newTimePosition,
+          accumulatedButtons: buttonReward > 0 ? 0 : currentPlayerData.accumulatedButtons,
+          independentPatches: currentPlayerData.independentPatches + (independentPatchReward ? 1 : 0),
+        },
+        availablePatches: finalAvailablePatches,
+      }
+
+      // 检查游戏是否结束
+      if (checkGameEnd()) {
+        const finalScore1 = calculateFinalScore(updatedState.player1)
+        const finalScore2 = calculateFinalScore(updatedState.player2)
+        
+        return {
+          ...updatedState,
+          gamePhase: "ended",
+          player1: { ...updatedState.player1, score: finalScore1 },
+          player2: { ...updatedState.player2, score: finalScore2 },
+        }
+      }
+
+      return updatedState
+    })
   }
 
   const getPatchColor = (patchId: number) => {
@@ -363,47 +487,41 @@ export default function PatchworkGame() {
     return colors[patchId % colors.length] || "bg-gray-400"
   }
 
-  const calculateScore = (player: typeof gameState.player1) => {
-    const filledCells = player.board.flat().filter((cell) => cell !== 0).length
-    const emptyPenalty = (81 - filledCells) * -2
-    return player.buttons + emptyPenalty + player.score
-  }
-
-  useEffect(() => {
-    setGameState((prev) => ({
-      ...prev,
-      player1: { ...prev.player1, score: calculateScore(prev.player1) },
-      player2: { ...prev.player2, score: calculateScore(prev.player2) },
-      currentPlayer: getCurrentPlayer(),
-    }))
-  }, [gameState.player1.board, gameState.player2.board, gameState.player1.buttons, gameState.player2.buttons])
-
-  // Calculate rectangular track positions with better spacing
-  const getRectangularPosition = (index: number, total: number) => {
+  // Calculate square track positions with rounded corners and 12% margin from inner content
+  const getSquarePosition = (index: number, total: number) => {
     const side = Math.ceil(total / 4)
     const position = index % total
-
-    let x = 0,
-      y = 0
-
+    
+    // 计算方形轨道的边界（距离内部内容12%的margin）
+    const margin = 12
+    const minX = margin
+    const maxX = 100 - margin
+    const minY = margin
+    const maxY = 100 - margin
+    
+    // 计算每边的长度
+    const sideLength = (maxX - minX) / 2
+    
+    let x = 0, y = 0
+    
     if (position < side) {
       // Top side
-      x = (position / Math.max(side - 1, 1)) * 80 + 10
-      y = 5
+      x = minX + (position / Math.max(side - 1, 1)) * sideLength * 2
+      y = minY
     } else if (position < side * 2) {
       // Right side
-      x = 90
-      y = ((position - side) / Math.max(side - 1, 1)) * 80 + 10
+      x = maxX
+      y = minY + ((position - side) / Math.max(side - 1, 1)) * sideLength * 2
     } else if (position < side * 3) {
       // Bottom side
-      x = 90 - ((position - side * 2) / Math.max(side - 1, 1)) * 80
-      y = 90
+      x = maxX - ((position - side * 2) / Math.max(side - 1, 1)) * sideLength * 2
+      y = maxY
     } else {
       // Left side
-      x = 10
-      y = 90 - ((position - side * 3) / Math.max(side - 1, 1)) * 80
+      x = minX
+      y = maxY - ((position - side * 3) / Math.max(side - 1, 1)) * sideLength * 2
     }
-
+    
     return { x, y }
   }
 
@@ -413,13 +531,33 @@ export default function PatchworkGame() {
         <div className="text-center mb-6">
           <h1 className="text-4xl font-bold text-amber-900 mb-2">双人对决拼图游戏</h1>
           <p className="text-amber-700">拼图块赛道 + 游戏进程赛道</p>
+          {gameState.gamePhase === "ended" && (
+            <div className="mt-4 p-4 bg-green-100 border border-green-400 rounded-lg">
+              <h2 className="text-2xl font-bold text-green-800 mb-2">游戏结束！</h2>
+              <div className="flex justify-center gap-8 text-lg">
+                <div className="text-blue-600">
+                  玩家1最终分数: {gameState.player1.score}
+                </div>
+                <div className="text-red-600">
+                  玩家2最终分数: {gameState.player2.score}
+                </div>
+              </div>
+              <div className="mt-2 text-green-700 font-semibold">
+                {gameState.player1.score > gameState.player2.score 
+                  ? "玩家1获胜！" 
+                  : gameState.player2.score > gameState.player1.score 
+                    ? "玩家2获胜！" 
+                    : "平局！"}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="relative min-h-[900px]">
-          {/* 拼图块赛道 - 矩形轨道 */}
+          {/* 拼图块赛道 - 方形轨道 */}
           <div className="absolute inset-0 pointer-events-none">
             {gameState.availablePatches.slice(0, 24).map((patch, index) => {
-              const { x, y } = getRectangularPosition(index, 24)
+              const { x, y } = getSquarePosition(index, 24)
               const isMarker = index === gameState.markerPosition
               const isAvailable = getAvailablePatches().some((p) => p.id === patch.id)
 
@@ -440,10 +578,10 @@ export default function PatchworkGame() {
                     </div>
                   )}
                   <Card
-                    className={`cursor-pointer hover:shadow-xl transition-all w-24 h-32 ${
+                    className={`cursor-pointer hover:shadow-xl transition-all w-24 h-32 rounded-xl ${
                       gameState.selectedPatch?.id === patch.id ? "ring-3 ring-blue-500 shadow-xl scale-105" : ""
                     } ${
-                      !isAvailable
+                      !isAvailable || gameState.gamePhase === "ended"
                         ? "opacity-30 cursor-not-allowed"
                         : currentPlayerData.buttons < patch.cost
                           ? "opacity-60 cursor-not-allowed"
@@ -451,6 +589,10 @@ export default function PatchworkGame() {
                     }`}
                     onClick={(e) => {
                       e.stopPropagation()
+                      if (gameState.gamePhase === "ended") {
+                        console.log("Game has ended, cannot select patches")
+                        return
+                      }
                       console.log(
                         "Patch clicked:",
                         patch.id,
@@ -516,6 +658,7 @@ export default function PatchworkGame() {
                     <Badge variant="outline">分数: {gameState.player1.score}</Badge>
                     <Badge variant="secondary">积累: {gameState.player1.accumulatedButtons}</Badge>
                     <Badge variant="secondary">独立: {gameState.player1.independentPatches}</Badge>
+                    <Badge variant="destructive">空格: {gameState.player1.emptyCells}</Badge>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -543,6 +686,10 @@ export default function PatchworkGame() {
                           }`}
                           onClick={(e) => {
                             e.stopPropagation()
+                            if (gameState.gamePhase === "ended") {
+                              console.log("Game has ended, cannot place patches")
+                              return
+                            }
                             console.log("Board cell clicked:", rowIndex, colIndex, "Current player:", currentPlayer)
                             if (currentPlayer === 1) {
                               placePatch(rowIndex, colIndex)
@@ -658,11 +805,17 @@ export default function PatchworkGame() {
 
                   {/* 当前回合信息 */}
                   <div className="text-center">
-                    <div className="text-lg font-semibold mb-2">当前回合: 玩家{currentPlayer}</div>
-                    {placementMode && (
-                      <p className="text-sm text-muted-foreground mb-2">
-                        点击你的操作区放置选中的拼图块
-                      </p>
+                    {gameState.gamePhase === "ended" ? (
+                      <div className="text-lg font-semibold mb-2 text-green-700">游戏已结束</div>
+                    ) : (
+                      <>
+                        <div className="text-lg font-semibold mb-2">当前回合: 玩家{currentPlayer}</div>
+                        {placementMode && (
+                          <p className="text-sm text-muted-foreground mb-2">
+                            点击你的操作区放置选中的拼图块
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
 
@@ -671,7 +824,7 @@ export default function PatchworkGame() {
                     <Button
                       onClick={skipTurn}
                       variant="outline"
-                      disabled={placementMode}
+                      disabled={placementMode || gameState.gamePhase === "ended"}
                       className="w-full bg-transparent"
                     >
                       跳过回合 & 获取纽扣
@@ -696,7 +849,8 @@ export default function PatchworkGame() {
                     <p>时间落后的玩家先行动</p>
                     <p>只能选择标记后3块拼图</p>
                     <p>优先到达奖励格获得奖励</p>
-                    <p>7x7完整正方形获得7分</p>
+                    <p>独立拼块奖励：获得1x1拼图块</p>
+                    <p>游戏结束时：分数 = 纽扣数 - 空格数×2</p>
                   </div>
                 </CardContent>
               </Card>
@@ -713,6 +867,7 @@ export default function PatchworkGame() {
                     <Badge variant="outline">分数: {gameState.player2.score}</Badge>
                     <Badge variant="secondary">积累: {gameState.player2.accumulatedButtons}</Badge>
                     <Badge variant="secondary">独立: {gameState.player2.independentPatches}</Badge>
+                    <Badge variant="destructive">空格: {gameState.player2.emptyCells}</Badge>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -740,6 +895,10 @@ export default function PatchworkGame() {
                           }`}
                           onClick={(e) => {
                             e.stopPropagation()
+                            if (gameState.gamePhase === "ended") {
+                              console.log("Game has ended, cannot place patches")
+                              return
+                            }
                             console.log("Board cell clicked:", rowIndex, colIndex, "Current player:", currentPlayer)
                             if (currentPlayer === 2) {
                               placePatch(rowIndex, colIndex)
