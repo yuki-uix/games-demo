@@ -1,30 +1,17 @@
 import { Patch, PlayerData } from "./types"
-import { BASE_PATCH_TEMPLATES, COLOR_VARIANTS, BUTTON_REWARD_POSITIONS, INDEPENDENT_PATCH_POSITIONS, TRACK_LENGTH } from "./constants"
+import { BUTTON_REWARD_POSITIONS, INDEPENDENT_PATCH_POSITIONS, TRACK_LENGTH } from "./constants"
+import { PATCH_CONFIGS } from "./patch-config"
 
-// 生成随机拼图块
-export const generatePatches = (count: number): Patch[] => {
-  const patches = []
-  for (let i = 1; i <= count; i++) {
-    const baseTemplate = BASE_PATCH_TEMPLATES[Math.floor(Math.random() * BASE_PATCH_TEMPLATES.length)]
-    const colorVariant = COLOR_VARIANTS[baseTemplate.baseColor as keyof typeof COLOR_VARIANTS]
-    const selectedColor = colorVariant[Math.floor(Math.random() * colorVariant.length)]
-
-    // Calculate patch properties based on size
-    const patchSize = baseTemplate.shape.flat().filter((cell) => cell === 1).length
-    const cost = Math.max(1, Math.floor(patchSize * 0.8) + Math.floor(Math.random() * 3))
-    const time = Math.max(1, Math.floor(patchSize * 0.6) + Math.floor(Math.random() * 2))
-    const income = Math.random() < 0.3 ? Math.floor(Math.random() * 2) + 1 : 0
-
-    patches.push({
-      id: i,
-      shape: baseTemplate.shape,
-      cost,
-      time,
-      income,
-      color: selectedColor,
-    })
-  }
-  return patches
+// 生成拼图块（从配置文件读取）
+export const generatePatches = (): Patch[] => {
+  // 颜色池
+  const colors = [
+    "bg-red-400", "bg-blue-400", "bg-green-400", "bg-yellow-400", "bg-purple-400", "bg-pink-400", "bg-orange-400", "bg-cyan-400", "bg-lime-400", "bg-indigo-400", "bg-teal-400"
+  ]
+  return PATCH_CONFIGS.map((cfg, idx) => ({
+    ...cfg,
+    color: colors[idx % colors.length],
+  }))
 }
 
 // 检查是否可以放置拼图块
@@ -117,40 +104,102 @@ export const getPatchColor = (patchId: number, availablePatches: Patch[]): strin
   return colors[patchId % colors.length] || "bg-gray-400"
 }
 
-// 计算方形轨道位置
+// 计算跑道轨道位置（矩形轨迹：沿着外圈白色方框的轨迹）
 export const getSquarePosition = (index: number, total: number) => {
-  const side = Math.ceil(total / 4)
   const position = index % total
   
-  // 计算方形轨道的边界（距离内部内容12%的margin）
-  const margin = 12
-  const minX = margin
-  const maxX = 100 - margin
-  const minY = margin
-  const maxY = 100 - margin
+  // 矩形轨道布局参数
+  const margin = 8 // 距离边缘的边距
+  const trackWidth = 100 - 2 * margin // 轨道总宽度
+  const trackHeight = 100 - 2 * margin // 轨道总高度
   
-  // 计算每边的长度
-  const sideLength = (maxX - minX) / 2
+  // 计算矩形周长上的位置分布
+  const perimeter = 2 * (trackWidth + trackHeight)
+  const topLength = trackWidth
+  const rightLength = trackHeight
+  const bottomLength = trackWidth
   
   let x = 0, y = 0
   
-  if (position < side) {
-    // Top side
-    x = minX + (position / Math.max(side - 1, 1)) * sideLength * 2
-    y = minY
-  } else if (position < side * 2) {
-    // Right side
-    x = maxX
-    y = minY + ((position - side) / Math.max(side - 1, 1)) * sideLength * 2
-  } else if (position < side * 3) {
-    // Bottom side
-    x = maxX - ((position - side * 2) / Math.max(side - 1, 1)) * sideLength * 2
-    y = maxY
-  } else {
-    // Left side
-    x = minX
-    y = maxY - ((position - side * 3) / Math.max(side - 1, 1)) * sideLength * 2
+  // 计算当前位置在周长上的距离
+  const targetDistance = (position / total) * perimeter
+  
+  // 上边
+  if (targetDistance < topLength) {
+    x = margin + targetDistance
+    y = margin
+  }
+  // 右边
+  else if (targetDistance < topLength + rightLength) {
+    x = margin + trackWidth
+    y = margin + (targetDistance - topLength)
+  }
+  // 下边
+  else if (targetDistance < topLength + rightLength + bottomLength) {
+    x = margin + trackWidth - (targetDistance - topLength - rightLength)
+    y = margin + trackHeight
+  }
+  // 左边
+  else {
+    x = margin
+    y = margin + trackHeight - (targetDistance - topLength - rightLength - bottomLength)
   }
   
   return { x, y }
+}
+
+/**
+ * 随机生成拼图块
+ * @param params 生成参数
+ * @returns Patch[]
+ */
+export const generateRandomPatches = (params: {
+  count: number,
+  shapes?: number[][][],
+  costRange?: [number, number],
+  timeRange?: [number, number],
+  incomeChance?: number, // 0~1
+  incomeRange?: [number, number],
+}) => {
+  const {
+    count,
+    shapes = [
+      [[1, 1], [1, 0]],
+      [[1, 1, 1]],
+      [[1, 1], [1, 1]],
+      [[1], [1], [1]],
+      [[1, 1, 0], [0, 1, 1]],
+      [[1, 0], [1, 1], [0, 1]],
+      [[1, 1, 1, 1]],
+      [[1, 1, 1], [1, 0, 0]],
+      [[0, 1, 0], [1, 1, 1]],
+      [[1, 0, 0], [1, 1, 1]],
+      [[1]],
+    ],
+    costRange = [1, 6],
+    timeRange = [1, 5],
+    incomeChance = 0.3,
+    incomeRange = [1, 2],
+  } = params
+
+  const colors = [
+    "bg-red-400", "bg-blue-400", "bg-green-400", "bg-yellow-400", "bg-purple-400", "bg-pink-400", "bg-orange-400", "bg-cyan-400", "bg-lime-400", "bg-indigo-400", "bg-teal-400"
+  ]
+
+  const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min
+
+  return Array.from({ length: count }).map((_, i) => {
+    const shape = shapes[Math.floor(Math.random() * shapes.length)]
+    const cost = randomInt(costRange[0], costRange[1])
+    const time = randomInt(timeRange[0], timeRange[1])
+    const income = Math.random() < incomeChance ? randomInt(incomeRange[0], incomeRange[1]) : 0
+    return {
+      id: i + 1,
+      shape,
+      cost,
+      time,
+      income,
+      color: colors[i % colors.length],
+    }
+  })
 } 

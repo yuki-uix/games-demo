@@ -1,7 +1,10 @@
+"use client"
+
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PlayerData, Patch } from "./types"
 import { getPatchColor } from "./utils"
+import { useTranslation } from "@/lib/useTranslation"
 
 interface PlayerBoardProps {
   playerNumber: 1 | 2
@@ -28,6 +31,8 @@ export function PlayerBoard({
   availablePatches,
   isGameEnded
 }: PlayerBoardProps) {
+  const { t } = useTranslation()
+
   const getCardClassName = () => {
     if (isCurrentPlayer) {
       return playerNumber === 1 ? "ring-3 ring-blue-500 w-80" : "ring-3 ring-red-500 w-80"
@@ -62,15 +67,15 @@ export function PlayerBoard({
     <Card className={getCardClassName()}>
       <CardHeader className="pb-2">
         <CardTitle className="text-center text-lg">
-          玩家{playerNumber} {isCurrentPlayer && <span className={getTitleClassName()}>← 当前</span>}
+          {t(`player${playerNumber}`)} {isCurrentPlayer && <span className={getTitleClassName()}>← {t('currentPlayer')}</span>}
         </CardTitle>
         <div className="flex justify-center gap-2 flex-wrap">
           <Badge variant="secondary">🔘 {playerData.buttons}</Badge>
           <Badge variant="secondary">⏱️ {playerData.timePosition}</Badge>
-          <Badge variant="outline">分数: {playerData.score}</Badge>
-          <Badge variant="secondary">积累: {playerData.accumulatedButtons}</Badge>
-          <Badge variant="secondary">独立: {playerData.independentPatches}</Badge>
-          <Badge variant="destructive">空格: {playerData.emptyCells}</Badge>
+          <Badge variant="outline">{t('score')}: {playerData.score}</Badge>
+          <Badge variant="secondary">{t('accumulated')}: {playerData.accumulatedButtons}</Badge>
+          <Badge variant="secondary">{t('independent')}: {playerData.independentPatches}</Badge>
+          <Badge variant="destructive">{t('emptyCells')}: {playerData.emptyCells}</Badge>
         </div>
       </CardHeader>
       <CardContent>

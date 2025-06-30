@@ -1,9 +1,18 @@
 import { useState } from "react"
 import { GameState, AvailablePatch } from "./types"
-import { generatePatches, canPlacePatch, calculateEmptyCells, calculateFinalScore, checkGameEnd, checkButtonReward, checkIndependentPatchReward } from "./utils"
-import { BOARD_SIZE, INITIAL_BUTTONS, PATCH_COUNT, TRACK_LENGTH } from "./constants"
+import { generatePatches, generateRandomPatches, canPlacePatch, calculateEmptyCells, calculateFinalScore, checkGameEnd, checkButtonReward, checkIndependentPatchReward } from "./utils"
+import { BOARD_SIZE, INITIAL_BUTTONS, TRACK_LENGTH } from "./constants"
 
-export function useGameLogic() {
+export interface UseGameLogicOptions {
+  useRandomPatches?: boolean
+  randomPatchOptions?: Parameters<typeof generateRandomPatches>[0]
+}
+
+export function useGameLogic(options?: UseGameLogicOptions) {
+  const patchList = options?.useRandomPatches
+    ? generateRandomPatches(options.randomPatchOptions || { count: 20 })
+    : generatePatches()
+
   const [gameState, setGameState] = useState<GameState>({
     currentPlayer: 1,
     player1: {
@@ -28,7 +37,7 @@ export function useGameLogic() {
       independentPatches: 0,
       emptyCells: BOARD_SIZE * BOARD_SIZE,
     },
-    availablePatches: generatePatches(PATCH_COUNT),
+    availablePatches: patchList,
     selectedPatch: null,
     markerPosition: 0,
     gamePhase: "playing",
