@@ -2,7 +2,6 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Patch } from "./types"
-import { useTranslation } from "@/lib/useTranslation"
 
 interface PatchCardProps {
   patch: Patch & { trackIndex?: number }
@@ -11,7 +10,6 @@ interface PatchCardProps {
   canAfford?: boolean
   isGameEnded?: boolean
   onClick?: () => void
-  isMarker?: boolean
 }
 
 export function PatchCard({ 
@@ -20,19 +18,10 @@ export function PatchCard({
   isAvailable = true, 
   canAfford = true, 
   isGameEnded = false,
-  onClick,
-  isMarker = false
+  onClick
 }: PatchCardProps) {
-  const { t } = useTranslation()
-
   return (
     <div className="relative">
-      {/* 标记指示器 */}
-      {isMarker && (
-        <div className="absolute -top-3 -left-3 w-6 h-6 bg-red-600 rounded-full flex items-center justify-center text-white text-xs font-bold z-40">
-          {t('marker')}
-        </div>
-      )}
       <Card
         className={`cursor-pointer hover:shadow-xl transition-all w-24 h-32 rounded-xl ${
           isSelected ? "ring-3 ring-blue-500 shadow-xl scale-105" : ""

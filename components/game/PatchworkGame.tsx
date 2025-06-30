@@ -18,7 +18,13 @@ export function PatchworkGame() {
     placePatch,
     skipTurn,
     cancelPlacement,
-  } = useGameLogic()
+  } = useGameLogic({
+    useRandomPatches: true,
+    randomPatchOptions: {
+      count: 52,
+      incomeChance: 0.5,
+    },
+  })
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-100">
@@ -35,6 +41,7 @@ export function PatchworkGame() {
                 gameState={gameState}
                 currentPlayerData={currentPlayerData}
                 onSelectPatch={selectPatch}
+                availablePatches={getAvailablePatches()}
               />
             </div>
 

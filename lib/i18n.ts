@@ -83,7 +83,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     skipTurnAndGetButtons: '跳过回合 & 获取纽扣',
     cancelPlacement: '取消放置',
     rule1: '时间落后的玩家先行动',
-    rule2: '只能选择标记后3块拼图',
+    rule2: '只能选择标记前3块拼图',
     rule3: '优先到达奖励格获得奖励',
     rule4: '独立拼块奖励：获得1x1拼图块',
     rule5: '游戏结束时：分数 = 纽扣数 - 空格数×2'
@@ -125,7 +125,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     skipTurnAndGetButtons: 'Skip Turn & Get Buttons',
     cancelPlacement: 'Cancel Placement',
     rule1: 'Player with less time moves first',
-    rule2: 'Can only select 3 patches after marker',
+    rule2: 'Can only select 3 patches before marker',
     rule3: 'Reach reward spaces first to get rewards',
     rule4: 'Independent patch reward: Get 1x1 patch',
     rule5: 'Game end: Score = Buttons - Empty cells × 2'

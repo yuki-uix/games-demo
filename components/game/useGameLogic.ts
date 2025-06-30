@@ -64,7 +64,7 @@ export function useGameLogic(options?: UseGameLogicOptions) {
   const getAvailablePatches = () => {
     const patches = []
     for (let i = 0; i < 3; i++) {
-      const index = (gameState.markerPosition + i) % gameState.availablePatches.length
+      const index = (gameState.markerPosition + i + 1) % gameState.availablePatches.length
       if (gameState.availablePatches[index]) {
         patches.push({ ...gameState.availablePatches[index], trackIndex: index })
       }
