@@ -62,13 +62,30 @@ export function useGameLogic(options?: UseGameLogicOptions) {
 
   // Get available patches (next 3 after marker)
   const getAvailablePatches = () => {
-    const patches = []
+    const patches: AvailablePatch[] = []
+    const totalPatches = gameState.availablePatches.length
+    
+    if (totalPatches === 0) return patches
+    
+    console.log(`Marker position: ${gameState.markerPosition}, Total patches: ${totalPatches}`)
+    
     for (let i = 0; i < 3; i++) {
-      const index = (gameState.markerPosition + i + 1) % gameState.availablePatches.length
+      // 计算相对于标志位的位置，确保能够循环
+      let index = (gameState.markerPosition + i + 1) % totalPatches
+      
+      // 如果索引为负数，转换为正数
+      if (index < 0) {
+        index = (index + totalPatches) % totalPatches
+      }
+      
+      console.log(`Available patch ${i + 1}: index ${index}, patch:`, gameState.availablePatches[index]?.id)
+      
       if (gameState.availablePatches[index]) {
         patches.push({ ...gameState.availablePatches[index], trackIndex: index })
       }
     }
+    
+    console.log(`Total available patches found: ${patches.length}`)
     return patches
   }
 
@@ -161,8 +178,11 @@ export function useGameLogic(options?: UseGameLogicOptions) {
           },
           availablePatches: finalAvailablePatches,
           selectedPatch: null,
-          markerPosition: patch.trackIndex,
+          // 确保标志位在有效范围内循环
+          markerPosition: finalAvailablePatches.length > 0 ? (patch.trackIndex % finalAvailablePatches.length) : 0,
         }
+
+        console.log(`New marker position: ${updatedState.markerPosition}, Total patches: ${finalAvailablePatches.length}`)
 
         // 检查游戏是否结束
         if (checkGameEnd(updatedState.player1, updatedState.player2)) {
